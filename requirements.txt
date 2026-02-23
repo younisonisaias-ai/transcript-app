@@ -1,5 +1,5 @@
-openai-whisper
-ffmpeg-python
-fastapi
-uvicorn
-python-multipart
+faster-whisper
+flask
+deep-translator
+edge-tts
+moviepy
