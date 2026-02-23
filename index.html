@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TranscribeAI — Free Video Transcriber</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --surface: #141417;
+      --surface2: #1c1c21;
+      --border: #2a2a32;
+      --accent: #f0a500;
+      --accent2: #ff6b35;
+      --text: #f0ede8;
+      --muted: #6b6878;
+      --success: #4ade80;
+      --error: #f87171;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Animated background grain */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.6;
+    }
+
+    /* Ambient glow */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 500px;
+      background: radial-gradient(ellipse, rgba(240,165,0,0.07) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 20px 80px;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 56px;
+      animation: fadeDown 0.8s ease both;
+    }
+
+    .logo-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .logo-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 0 30px rgba(240,165,0,0.3);
+    }
+
+    .logo-text {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(42px, 7vw, 80px);
+      font-weight: 900;
+      line-height: 1.0;
+      letter-spacing: -2px;
+      background: linear-gradient(135deg, var(--text) 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: var(--muted);
+      font-weight: 300;
+      letter-spacing: 0.3px;
+    }
+
+    /* Main card */
+    .card {
+      width: 100%;
+      max-width: 680px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      animation: fadeUp 0.8s 0.2s ease both;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      padding: 48px 40px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      background: var(--surface2);
+    }
+
+    .drop-zone.dragover {
+      border-color: var(--accent);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      pointer-events: none;
+    }
+
+    .drop-icon {
+      width: 64px;
+      height: 64px;
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      transition: border-color 0.3s, transform 0.3s;
+      background: var(--surface2);
+    }
+
+    .drop-zone:hover .drop-icon,
+    .drop-zone.dragover .drop-icon {
+      border-color: var(--accent);
+      transform: scale(1.05);
+    }
+
+    .drop-title {
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .drop-sub {
+      font-size: 13px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+    }
+
+    .file-chosen {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-top: 16px;
+      pointer-events: none;
+    }
+
+    .file-chosen.show { display: flex; }
+
+    .file-chosen-icon {
+      font-size: 22px;
+    }
+
+    .file-chosen-name {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: var(--accent);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 400px;
+    }
+
+    /* Actions */
+    .actions {
+      padding: 28px 40px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .btn-transcribe {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #0d0d0f;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(240,165,0,0.25);
+    }
+
+    .btn-transcribe:hover:not(:disabled) {
+      opacity: 0.92;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 30px rgba(240,165,0,0.4);
+    }
+
+    .btn-transcribe:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-transcribe:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Progress */
+    .progress-wrap {
+      display: none;
+      margin-top: 16px;
+    }
+
+    .progress-wrap.show { display: block; }
+
+    .progress-bar-bg {
+      height: 3px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      width: 0%;
+      animation: progressAnim 2.5s ease-in-out infinite;
+    }
+
+    @keyframes progressAnim {
+      0%   { width: 0%;   margin-left: 0; }
+      50%  { width: 70%;  margin-left: 0; }
+      100% { width: 0%;   margin-left: 100%; }
+    }
+
+    .progress-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* Status */
+    .status-bar {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-top: 14px;
+      font-size: 14px;
+      font-weight: 400;
+    }
+
+    .status-bar.show { display: flex; }
+    .status-bar.success { background: rgba(74,222,128,0.08); color: var(--success); border: 1px solid rgba(74,222,128,0.2); }
+    .status-bar.error   { background: rgba(248,113,113,0.08); color: var(--error);   border: 1px solid rgba(248,113,113,0.2); }
+
+    /* Output */
+    .output-section {
+      padding: 32px 40px;
+      display: none;
+    }
+
+    .output-section.show { display: block; }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .output-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .output-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-small {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: 'DM Mono', monospace;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      transition: all 0.2s;
+    }
+
+    .btn-small:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .transcript-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      line-height: 1.8;
+      color: var(--text);
+      min-height: 180px;
+      max-height: 380px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      resize: vertical;
+    }
+
+    .transcript-box::-webkit-scrollbar { width: 6px; }
+    .transcript-box::-webkit-scrollbar-track { background: transparent; }
+    .transcript-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+    /* Word count badge */
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      margin-top: 14px;
+    }
+
+    .stat-chip {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .stat-chip span {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 48px;
+      text-align: center;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      animation: fadeUp 0.8s 0.4s ease both;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* Animations */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .output-section.show {
+      animation: popIn 0.4s ease both;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .drop-zone, .actions, .output-section { padding-left: 24px; padding-right: 24px; }
+      h1 { letter-spacing: -1px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <header>
+      <div class="logo-mark">
+        <div class="logo-icon">🎙️</div>
+        <span class="logo-text">TranscribeAI</span>
+      </div>
+      <h1>Every Word,<br/>In Writing.</h1>
+      <p class="subtitle">Drop your video. Get the full transcript instantly — no API key, no cost.</p>
+    </header>
+
+    <div class="card">
+
+      <!-- Drop Zone -->
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="videoInput" accept="video/*,audio/*" />
+        <div class="drop-inner">
+          <div class="drop-icon">🎬</div>
+          <div class="drop-title">Drop your video here</div>
+          <div class="drop-sub">MP4 · MOV · AVI · MKV · MP3 · WAV</div>
+          <div class="file-chosen" id="fileChosen">
+            <span class="file-chosen-icon">📎</span>
+            <span class="file-chosen-name" id="fileName"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <button class="btn-transcribe" id="transcribeBtn" disabled>
+          Choose a file to begin
+        </button>
+
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill"></div>
+          </div>
+          <div class="progress-label" id="progressLabel">⏳ Processing audio — this may take a moment...</div>
+        </div>
+
+        <div class="status-bar" id="statusBar"></div>
+      </div>
+
+      <!-- Output -->
+      <div class="output-section" id="outputSection">
+        <div class="output-header">
+          <span class="output-label">Transcript</span>
+          <div class="output-actions">
+            <button class="btn-small" id="copyBtn">Copy</button>
+            <button class="btn-small" id="downloadBtn">Download .txt</button>
+          </div>
+        </div>
+        <div class="transcript-box" id="transcriptBox"></div>
+        <div class="stats-row">
+          <div class="stat-chip">Words: <span id="wordCount">0</span></div>
+          <div class="stat-chip">Chars: <span id="charCount">0</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <footer>
+      Powered by <a href="https://github.com/openai/whisper" target="_blank">OpenAI Whisper</a> · Running 100% locally · No data stored
+    </footer>
+
+  </div>
+
+  <script>
+    const dropZone     = document.getElementById('dropZone');
+    const videoInput   = document.getElementById('videoInput');
+    const fileChosen   = document.getElementById('fileChosen');
+    const fileName     = document.getElementById('fileName');
+    const transcribeBtn = document.getElementById('transcribeBtn');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressLabel = document.getElementById('progressLabel');
+    const statusBar    = document.getElementById('statusBar');
+    const outputSection = document.getElementById('outputSection');
+    const transcriptBox = document.getElementById('transcriptBox');
+    const wordCount    = document.getElementById('wordCount');
+    const charCount    = document.getElementById('charCount');
+    const copyBtn      = document.getElementById('copyBtn');
+    const downloadBtn  = document.getElementById('downloadBtn');
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    videoInput.addEventListener('change', () => {
+      if (videoInput.files[0]) handleFile(videoInput.files[0]);
+    });
+
+    function handleFile(file) {
+      fileName.textContent = file.name;
+      fileChosen.classList.add('show');
+      transcribeBtn.disabled = false;
+      transcribeBtn.textContent = '✨ Transcribe Video';
+      // Reset status
+      statusBar.className = 'status-bar';
+      statusBar.textContent = '';
+      outputSection.classList.remove('show');
+    }
+
+    transcribeBtn.addEventListener('click', async () => {
+      const file = videoInput.files[0] || window._droppedFile;
+      if (!file) return;
+
+      // UI: loading state
+      transcribeBtn.disabled = true;
+      transcribeBtn.textContent = 'Transcribing...';
+      progressWrap.classList.add('show');
+      statusBar.className = 'status-bar';
+      outputSection.classList.remove('show');
+
+      const dots = ['Processing audio...', 'Running Whisper model...', 'Almost there...', 'Finalizing transcript...'];
+      let di = 0;
+      const dotInterval = setInterval(() => { progressLabel.textContent = '⏳ ' + dots[di++ % dots.length]; }, 3500);
+
+      try {
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const res = await fetch('/transcribe', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        clearInterval(dotInterval);
+        progressWrap.classList.remove('show');
+
+        if (data.transcript) {
+          const text = data.transcript.trim();
+          transcriptBox.textContent = text;
+          wordCount.textContent = text.split(/\s+/).filter(Boolean).length.toLocaleString();
+          charCount.textContent = text.length.toLocaleString();
+          outputSection.classList.add('show');
+
+          statusBar.innerHTML = '✅ Transcription complete!';
+          statusBar.className = 'status-bar success show';
+        } else {
+          statusBar.innerHTML = '❌ ' + (data.error || 'Something went wrong.');
+          statusBar.className = 'status-bar error show';
+        }
+      } catch (err) {
+        clearInterval(dotInterval);
+        progressWrap.classList.remove('show');
+        statusBar.innerHTML = '❌ Network error: ' + err.message;
+        statusBar.className = 'status-bar error show';
+      }
+
+      transcribeBtn.disabled = false;
+      transcribeBtn.textContent = '✨ Transcribe Again';
+    });
+
+    // Copy
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(transcriptBox.textContent).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+      });
+    });
+
+    // Download
+    downloadBtn.addEventListener('click', () => {
+      const blob = new Blob([transcriptBox.textContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'transcript.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Store dropped file globally for submit
+    dropZone.addEventListener('drop', e => {
+      if (e.dataTransfer.files[0]) window._droppedFile = e.dataTransfer.files[0];
+    });
+  </script>
+</body>
+</html>
